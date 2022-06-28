@@ -55,6 +55,7 @@ int main(void)
 		cliaddr_len = sizeof(cliaddr);
 		connfd = Accept(listenfd, (struct sockaddr *)&cliaddr, &cliaddr_len);
 
+		// 创建进程
 		pid = fork();
 		if (pid == 0) 				//子进程
 		{

@@ -4,16 +4,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <ctype.h>
 #include "wrap.h"
+#include "threadpoolsimple.h"
 
-#define MAXLINE 80
+
+
+
 #define SERV_PORT 6666
-
-struct s_info 
-{
-	struct sockaddr_in cliaddr;
-	int connfd;
-};
 
 void *do_work(void *arg)
 {
@@ -35,7 +33,7 @@ void *do_work(void *arg)
 		if (n == 0) 
 		{
 			printf("the other side has been closed.\n");
-			
+			close(ts->connfd);
 			break;
 		}
 		printf("received from %s at PORT %d\n",
@@ -50,11 +48,12 @@ void *do_work(void *arg)
 
 int main(void)
 {
+	create_threadpool(3,20);
+
 	struct sockaddr_in servaddr, cliaddr;
 	socklen_t cliaddr_len;
 	int listenfd, connfd;
-	int i = 0;
-	pthread_t tid;
+	
 	struct s_info ts[256];
 
 	// 创建套接字
@@ -74,15 +73,17 @@ int main(void)
 	printf("Accepting connections ...\n");
 	while (1) 
 	{
+		struct s_info ts;
+
 		// 提取连接
 		cliaddr_len = sizeof(cliaddr);
 		connfd = Accept(listenfd, (struct sockaddr *)&cliaddr, &cliaddr_len);
-		ts[i].cliaddr = cliaddr;
-		ts[i].connfd = connfd;
-		/* 达到线程最大数时，pthread_create 需要做出错处理, 增加服务器稳定性 */
-		pthread_create(&tid, NULL, do_work, (void*)&ts[i]);
-		i++;
+		ts.cliaddr = cliaddr;
+		ts.connfd = connfd;
+		addtask(thrPool, (void*)&ts);//模拟添加任务
 	}
+
+	destroy_threadpool(thrPool);
 	return 0;
 }
-
+// gcc server.c threadpoolsimple.c wrap.c -o server -lpthread
