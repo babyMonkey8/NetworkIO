@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	int i, maxi, maxfd, listenfd, connfd, sockfd;
 	int nready, client[FD_SETSIZE]; 	/* FD_SETSIZE 默认为 1024 */
 	ssize_t n;
-	fd_set rset, allset;
+	fd_set rset, allset;				/* reset 表示当前集合；allset表示旧的集合 */
 	char buf[MAXLINE];
 	char str[INET_ADDRSTRLEN]; 			/* #define INET_ADDRSTRLEN 16 */
 	socklen_t cliaddr_len;
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 	// 监听
 	Listen(listenfd, 20); 		/* 默认最大128 */
 
-	maxfd = listenfd; 			/* 初始化 */
+	maxfd = listenfd; 			/* 初始化最大的文件描述符 */  
 	maxi = -1;					/* client[]的下标 */
 
 	for (i = 0; i < FD_SETSIZE; i++)
@@ -54,8 +54,9 @@ int main(int argc, char *argv[])
 		if (nready < 0)	
 			perr_exit("select error");
 
+		//listenfd 变化 代表有新的连接到来
 		if (FD_ISSET(listenfd, &rset)) 
-		{ /* new client connection */
+		{
 			// 提取连接
 			cliaddr_len = sizeof(cliaddr);
 			connfd = Accept(listenfd, (struct sockaddr *)&cliaddr, &cliaddr_len);
@@ -78,7 +79,7 @@ int main(int argc, char *argv[])
 				exit(1);
 			}
 
-			FD_SET(connfd, &allset); 	/* 添加一个新的文件描述符到监控信号集里 */
+			FD_SET(connfd, &allset); 	/* 添加一个新的文件描述符到监控信号集(旧的集合)里，以便下次监听 */
 			if (connfd > maxfd)
 				maxfd = connfd; 		/* select第一个参数需要 */
 			if (i > maxi)
@@ -89,13 +90,21 @@ int main(int argc, char *argv[])
 											负责处理未处理完的就绪文件描述符 */
 		}
 
+		// 遍历 listenfd（位图位置） 之后的文件描述符是否在当前集合中,如果在则 cfd 变化
 		for (i = 0; i <= maxi; i++) 
 		{ 	/* 检测哪个clients 有数据就绪 */
 			if ( (sockfd = client[i]) < 0)
 				continue;
 			if (FD_ISSET(sockfd, &rset)) 
 			{
-				if ( (n = Read(sockfd, buf, MAXLINE)) == 0) 
+				int n = Read(sockfd, buf, MAXLINE);
+				if (n < 0)				/* 读出错,将cfd关闭,从当前集合中删除cfd*/
+				{
+					perror("read error");
+					Close(sockfd);
+					FD_CLR(sockfd, &rset);		
+				}
+				if ( n == 0) 
 				{
 					Close(sockfd);		/* 当client关闭链接时，服务器端也关闭对应链接 */
 					FD_CLR(sockfd, &allset); /* 解除select监控此文件描述符 */

@@ -24,6 +24,7 @@ int main(int argc, char *argv[])
 	struct pollfd client[OPEN_MAX];
 	struct sockaddr_in cliaddr, servaddr;
 
+	// 创建套接字
 	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
 
 	bzero(&servaddr, sizeof(servaddr));
@@ -31,8 +32,10 @@ int main(int argc, char *argv[])
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERV_PORT);
 
+	// 绑定套接字
 	Bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
 
+	// 监听
 	Listen(listenfd, 20);
 
 	client[0].fd = listenfd;
@@ -41,10 +44,13 @@ int main(int argc, char *argv[])
 	for (i = 1; i < OPEN_MAX; i++)
 		client[i].fd = -1; 							/* 用-1初始化client[]里剩下元素 */
 	maxi = 0; 										/* client[]数组有效元素中最大元素下标 */
+
 	printf("Accepting connections ...\n");
+
 	for ( ; ; ) {
 		nready = poll(client, maxi+1, -1); 			/* 阻塞 */
-		if (client[0].revents & POLLIN) { 		/* 有客户端链接请求 */
+
+		if (client[0].revents & POLLIN) { 		/* 服务端描述符有变化，说明有客户端链接请求 */
 			clilen = sizeof(cliaddr);
 			connfd = Accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
 			printf("received from %s at PORT %d\n",
